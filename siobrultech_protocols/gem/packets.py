@@ -121,6 +121,46 @@ class Packet(object):
             diff = cur - prev
         return diff
 
+    def get_average_power(self, index: int, newest_packet: Packet) -> float:
+        if self.seconds < newest_packet.seconds:
+            oldest_packet = self
+            newest_packet = newest_packet
+        else:
+            oldest_packet = newest_packet
+            newest_packet = self
+
+        elapsed_seconds = newest_packet.delta_seconds(oldest_packet.seconds)
+
+        # This is the total energy produced or consumed since the last sample.
+        delta_total_watt_seconds = (
+            newest_packet.delta_absolute_watt_seconds(
+                index, oldest_packet.absolute_watt_seconds[index]
+            )
+            if oldest_packet.absolute_watt_seconds[index] != 0
+            else 0
+        )
+
+        # This is the energy produced since the last sample  This will be 0 for all channels except for channels in NET
+        # metering mode that are actually producing electricity.
+        delta_watt_seconds_produced = (
+            newest_packet.delta_polarized_watt_seconds(
+                index, oldest_packet.polarized_watt_seconds[index]
+            )
+            if oldest_packet.polarized_watt_seconds is not None
+            and newest_packet.polarized_watt_seconds is not None
+            else 0
+        )
+
+        # This is the energy consumed since the last sample.
+        delta_watt_seconds_consumed = (
+            delta_total_watt_seconds - delta_watt_seconds_produced
+        )
+
+        # Finally, we can compute the average power over time since the last sample.
+        return (
+            delta_watt_seconds_consumed - delta_watt_seconds_produced
+        ) / elapsed_seconds
+
 
 @unique
 class PacketFormatType(IntEnum):

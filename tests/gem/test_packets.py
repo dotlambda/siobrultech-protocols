@@ -1,3 +1,4 @@
+import functools
 import unittest
 
 from siobrultech_protocols.gem import packets
@@ -142,6 +143,52 @@ class TestPacketDeltaComputation(unittest.TestCase):
                 for i in range(0, len(packet.polarized_watt_seconds))
             ],
         )
+
+
+class TestPacketAverageComputation(unittest.TestCase):
+    def test_packet_average_power(self):
+        packet_maker = functools.partial(
+            packets.Packet,
+            packet_format=packets.BIN32_ABS,
+            voltage=120.0,
+            device_id=123456,
+            serial_number=123456,
+            pulse_counts=[0] * packets.PacketFormat.NUM_PULSE_COUNTERS,
+            temperatures=[0] * packets.PacketFormat.NUM_TEMPERATURE_SENSORS,
+        )
+        packet_a = packet_maker(
+            seconds=0,
+            absolute_watt_seconds=[10] * packets.BIN32_ABS.num_channels,
+        )
+        packet_b = packet_maker(
+            seconds=10,
+            absolute_watt_seconds=[20] * packets.BIN32_ABS.num_channels,
+        )
+        self.assertEqual(packet_a.get_average_power(0, packet_b), 1.0)
+        self.assertEqual(packet_b.get_average_power(0, packet_a), 1.0)
+
+    def test_packet_average_power_net_metering(self):
+        packet_maker = functools.partial(
+            packets.Packet,
+            packet_format=packets.BIN32_NET,
+            voltage=120.0,
+            device_id=123456,
+            serial_number=123456,
+            pulse_counts=[0] * packets.PacketFormat.NUM_PULSE_COUNTERS,
+            temperatures=[0] * packets.PacketFormat.NUM_TEMPERATURE_SENSORS,
+        )
+        packet_a = packet_maker(
+            seconds=0,
+            absolute_watt_seconds=[10] * packets.BIN32_NET.num_channels,
+            polarized_watt_seconds=[0] * packets.BIN32_NET.num_channels,
+        )
+        packet_b = packet_maker(
+            seconds=10,
+            absolute_watt_seconds=[40] * packets.BIN32_NET.num_channels,
+            polarized_watt_seconds=[10] * packets.BIN32_NET.num_channels,
+        )
+        self.assertEqual(packet_a.get_average_power(0, packet_b), 1.0)
+        self.assertEqual(packet_b.get_average_power(0, packet_a), 1.0)
 
 
 def check_packet(packet_file_name: str, packet_format: packets.PacketFormat):
